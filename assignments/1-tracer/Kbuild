@@ -1,0 +1,5 @@
+obj-m += tracer.o
+tracer-y := mem/kmalloc_tracer.o mem/kfree_tracer.o \
+            intr/up_tracer.o intr/down_tracer.o \
+            sync/lock_tracer.o sync/unlock_tracer.o sync/sched_tracer.o \
+            tracer_main.o
