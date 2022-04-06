@@ -79,8 +79,6 @@ static int kfree_handler(struct kretprobe_instance *instance,
 
 			hlist_for_each_entry (data_addr, head_addr, node) {
 				addr = data_addr->address;
-
-				/* TODO: fix this. */
 				head_kmalloc =
 					&data_proc->kmalloc_data.addr_table[hash_min(
 						tid,
@@ -90,12 +88,21 @@ static int kfree_handler(struct kretprobe_instance *instance,
 				hlist_for_each_entry (data_kmalloc,
 						      head_kmalloc, node) {
 					if (data_kmalloc->address == addr) {
-						/* TODO: finish this. */
+						arch_atomic_add(
+							arch_atomic_read(
+								&data_kmalloc
+									 ->size),
+							&data_proc->kfree_data
+								 .generic.mem);
+
+						return 0;
 					}
 				}
 			}
 		}
 	}
+
+	/* TODO: place significant return value. */
 	return 0;
 }
 
