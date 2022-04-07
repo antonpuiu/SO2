@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0+
+/* SPDX-License-Identifier: GPL-2.0+ */
 
 #ifndef KMODULES_H__
 #define KMODULES_H__ 1

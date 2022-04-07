@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0+
+/* SPDX-License-Identifier: GPL-2.0+ */
 
 #ifndef KFREE_TRACER_H__
 #define KFREE_TRACER_H__ 1

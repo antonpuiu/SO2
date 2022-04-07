@@ -13,6 +13,7 @@ static int kfree_entry_handler(struct kretprobe_instance *instance,
 {
 	struct hlist_head *head_proc;
 	struct hlist_head *head_addr;
+	struct hlist_node *i, *j;
 	struct tracer_data *data_proc;
 	struct addr_data *data_addr;
 	unsigned long addr;
@@ -26,7 +27,7 @@ static int kfree_entry_handler(struct kretprobe_instance *instance,
 	if (head_proc->first == NULL)
 		return HANDLER_STOP;
 
-	hlist_for_each_entry (data_proc, head_proc, node) {
+	hlist_for_each_entry_safe(data_proc, i, head_proc, node) {
 		if (data_proc->tgid == tgid) {
 			arch_atomic_inc(&data_proc->kfree_data.calls);
 
@@ -36,7 +37,8 @@ static int kfree_entry_handler(struct kretprobe_instance *instance,
 			if (head_addr->first == NULL)
 				return HANDLER_STOP;
 
-			hlist_for_each_entry (data_addr, head_addr, node) {
+			hlist_for_each_entry_safe(data_addr, j, head_addr,
+						   node) {
 				if (data_addr->tgid == tgid &&
 				    data_addr->addr == addr) {
 					arch_atomic_add(

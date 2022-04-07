@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0+
+/* SPDX-License-Identifier: GPL-2.0+ */
 
 #ifndef KMALLOC_TRACER_H__
 #define KMALLOC_TRACER_H__ 1

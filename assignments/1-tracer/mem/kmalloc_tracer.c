@@ -8,6 +8,7 @@ static int kmalloc_entry_handler(struct kretprobe_instance *instance,
 				 struct pt_regs *regs)
 {
 	struct hlist_head *head_proc;
+	struct hlist_node *i;
 	struct tracer_data *data_proc;
 	struct addr_data *data_addr;
 	pid_t tgid;
@@ -19,12 +20,12 @@ static int kmalloc_entry_handler(struct kretprobe_instance *instance,
 	if (head_proc->first == NULL)
 		return HANDLER_STOP;
 
-	hlist_for_each_entry (data_proc, head_proc, node) {
+	hlist_for_each_entry_safe(data_proc, i, head_proc, node) {
 		if (data_proc->tgid == tgid) {
 			arch_atomic_inc(&data_proc->kmalloc_data.calls);
 
-			data_addr = (struct addr_data *)kmalloc(
-				sizeof(struct addr_data), GFP_KERNEL);
+			data_addr =
+				kmalloc(sizeof(struct addr_data), GFP_NOWAIT);
 
 			if (data_addr == NULL)
 				return -ENOMEM;
@@ -47,6 +48,7 @@ static int kmalloc_handler(struct kretprobe_instance *instance,
 {
 	struct hlist_head *head_proc;
 	struct hlist_head *head_addr;
+	struct hlist_node *i, *j;
 	struct tracer_data *data_proc;
 	struct addr_data *data_addr;
 	unsigned long addr;
@@ -63,7 +65,7 @@ static int kmalloc_handler(struct kretprobe_instance *instance,
 	if (head_proc->first == NULL)
 		return HANDLER_STOP;
 
-	hlist_for_each_entry (data_proc, head_proc, node) {
+	hlist_for_each_entry_safe(data_proc, i, head_proc, node) {
 		if (data_proc->tgid == tgid) {
 			head_addr = &addr_table[hash_min(
 				tgid, HASH_BITS(addr_table))];
@@ -71,7 +73,7 @@ static int kmalloc_handler(struct kretprobe_instance *instance,
 			if (head_addr->first == NULL)
 				return HANDLER_STOP;
 
-			hlist_for_each_entry (data_addr, head_addr, node) {
+			hlist_for_each_entry_safe(data_addr, j, head_addr, node) {
 				if (data_addr->tgid == tgid) {
 					data_addr->addr = addr;
 					arch_atomic_add(

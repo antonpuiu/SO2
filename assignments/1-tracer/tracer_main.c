@@ -6,6 +6,7 @@
 #include "linux/rcupdate.h"
 #include "linux/sched.h"
 #include "linux/spinlock.h"
+#include "linux/wait.h"
 #include <linux/spinlock_types.h>
 #include <linux/kernel.h>
 #include <linux/export.h>
@@ -20,6 +21,7 @@
 #include <linux/fs.h>
 #include <linux/hashtable.h>
 #include <linux/slab.h>
+#include <linux/kthread.h>
 #include <linux/string.h>
 
 #include <asm/atomic.h>
@@ -32,8 +34,11 @@
 
 #define IOCTL_ENTRY "[tracer_ioctl]"
 
-#define NOMEM_ERR "No more memory."
 #define WRONG_PID "Process not found."
+
+wait_queue_head_t wq;
+spinlock_t events_lock;
+LIST_HEAD(events_list);
 
 DEFINE_HASHTABLE(procs_table, PROCS_TABLE_SIZE);
 DEFINE_HASHTABLE(addr_table, PROCS_TABLE_SIZE);
@@ -62,14 +67,15 @@ static inline void tracer_init_data(struct tracer_data *data, pid_t tgid)
 
 static int tracer_proc_show(struct seq_file *m, void *v)
 {
-	int i;
 	struct tracer_data *crt;
+	struct hlist_node *tmp;
+	int i;
 
 	seq_printf(m, PRINT_FORMAT, PRINT_PID, PRINT_KMALLOC, PRINT_KFREE,
 		   PRINT_KMALLOC_MEM, PRINT_KFREE_MEM, PRINT_SCHED, PRINT_UP,
 		   PRINT_DOWN, PRINT_LOCK, PRINT_UNLOCK);
 
-	hash_for_each (procs_table, i, crt, node) {
+	hash_for_each_safe(procs_table, i, tmp, crt, node) {
 		seq_printf(m, PRINT_HASH_FORMAT, crt->tgid,
 			   arch_atomic_read(&crt->kmalloc_data.calls),
 			   arch_atomic_read(&crt->kfree_data.calls),
@@ -106,14 +112,10 @@ static inline long tracer_add_proc(unsigned long arg)
 		return -ESRCH;
 	}
 
-	data = (struct tracer_data *)kmalloc(sizeof(struct tracer_data),
-					     GFP_KERNEL);
+	data = kmalloc(sizeof(struct tracer_data), GFP_NOWAIT);
 
-	if (data == NULL) {
-		pr_alert(PRINT_ALERT_FORMAT, IOCTL_ENTRY, NOMEM_ERR);
-
+	if (data == NULL)
 		return -ENOMEM;
-	}
 
 	tracer_init_data(data, arg);
 
@@ -125,9 +127,10 @@ static inline long tracer_add_proc(unsigned long arg)
 static inline long tracer_rm_proc(unsigned long arg)
 {
 	struct tracer_data *data;
+	struct hlist_node *tmp;
 	int i;
 
-	hash_for_each (procs_table, i, data, node) {
+	hash_for_each_safe(procs_table, i, tmp, data, node) {
 		if (data->tgid == arg) {
 			hash_del(&data->node);
 
@@ -180,10 +183,16 @@ static inline void tracer_remove_watchers(void)
 static inline void tracer_clear_hashtables(void)
 {
 	struct tracer_data *data_t;
+	struct addr_data *data_a;
+	struct hlist_node *tmp;
 	int i;
 
-	hash_for_each (procs_table, i, data_t, node) {
+	hash_for_each_safe(procs_table, i, tmp, data_t, node) {
 		kfree(data_t);
+	}
+
+	hash_for_each_safe(addr_table, i, tmp, data_a, node) {
+		kfree(data_a);
 	}
 }
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0+
+/* SPDX-License-Identifier: GPL-2.0+ */
 
 #include "asm-generic/errno-base.h"
 #include "linux/gfp.h"

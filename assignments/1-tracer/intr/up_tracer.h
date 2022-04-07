@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0+
+/* SPDX-License-Identifier: GPL-2.0+ */
 
 #ifndef UP_TRACER_H__
 #define UP_TRACER_H__ 1

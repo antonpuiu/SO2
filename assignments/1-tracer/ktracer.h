@@ -1,9 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0+
+/* SPDX-License-Identifier: GPL-2.0+ */
 
-/*
-** ktracer.h - kernel header of kprobe based tracer.
-*/
-
+#include "linux/rcupdate.h"
 #include "linux/sched.h"
 #ifndef KTRACER_H__
 #define KTRACER_H__ 1
@@ -15,6 +12,7 @@
 
 #include <asm/atomic.h>
 
+#include "kdata.h"
 #include "mem/mem_data.h"
 
 #define MAX_ACTIVE 32
@@ -52,20 +50,18 @@ struct tracer_data {
 	pid_t tgid;
 };
 
-extern struct hlist_head procs_table[1 << PROCS_TABLE_SIZE];
-extern struct hlist_head addr_table[1 << PROCS_TABLE_SIZE];
-
 static inline int tracer_update_calls(struct kretprobe_instance *instance,
 				      ssize_t displacement)
 {
 	struct tracer_data *data;
 	struct hlist_head *head;
+	struct hlist_node *tmp;
 	pid_t pid;
 
 	pid = instance->task->tgid;
 	head = &procs_table[hash_min(pid, HASH_BITS(procs_table))];
 
-	hlist_for_each_entry (data, head, node) {
+	hlist_for_each_entry_safe(data, tmp, head, node) {
 		if (pid == data->tgid) {
 			arch_atomic_inc(
 				(atomic_t *)((ssize_t)data + displacement));

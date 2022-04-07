@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0+
+/* SPDX-License-Identifier: GPL-2.0+ */
 
 #ifndef UNLOCK_TRACER_H__
 #define UNLOCK_TRACER_H__ 1
