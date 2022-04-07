@@ -12,7 +12,9 @@
  */
 
 #ifndef DEBUG_H_
-#define DEBUG_H_	1
+#define DEBUG_H_ 1
+
+#define DEBUG
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,7 +40,7 @@ enum {
  */
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL	LOG_WARNING
+#define LOG_LEVEL LOG_WARNING
 #endif
 
 /*
@@ -48,25 +50,24 @@ enum {
  */
 
 #if defined DEBUG
-#define dprintf(format, ...)					\
-	fprintf(stderr, " [%s(), %s:%u] " format,		\
-			__func__, __FILE__, __LINE__,	\
-			##__VA_ARGS__)
+#define dprintf(format, ...)                                                   \
+	fprintf(stderr, " [%s(), %s:%u] " format, __func__, __FILE__,          \
+		__LINE__, ##__VA_ARGS__)
 #else
-#define dprintf(format, ...)					\
-	do {							\
+#define dprintf(format, ...)                                                   \
+	do {                                                                   \
 	} while (0)
 #endif
 
 #if defined DEBUG
-#define dlog(level, format, ...)				\
-	do {							\
-		if (level <= LOG_LEVEL)				\
-			dprintf(format, ##__VA_ARGS__);		\
+#define dlog(level, format, ...)                                               \
+	do {                                                                   \
+		if (level <= LOG_LEVEL)                                        \
+			dprintf(format, ##__VA_ARGS__);                        \
 	} while (0)
 #else
-#define dlog(level, format, ...)				\
-	do {							\
+#define dlog(level, format, ...)                                               \
+	do {                                                                   \
 	} while (0)
 #endif
 

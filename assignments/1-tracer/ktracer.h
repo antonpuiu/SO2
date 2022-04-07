@@ -35,10 +35,13 @@
 #define PRINT_LOCK "lock"
 #define PRINT_UNLOCK "unlock"
 
+#define HANDLER_CONTINUE 0
+#define HANDLER_STOP 1
+
 struct tracer_data {
 	struct hlist_node node;
-	struct kmem_data kmalloc_data;
-	struct kmem_data kfree_data;
+	struct mem_data kmalloc_data;
+	struct mem_data kfree_data;
 
 	atomic_t sched_calls;
 	atomic_t lock_calls;
@@ -50,6 +53,7 @@ struct tracer_data {
 };
 
 extern struct hlist_head procs_table[1 << PROCS_TABLE_SIZE];
+extern struct hlist_head addr_table[1 << PROCS_TABLE_SIZE];
 
 static inline int tracer_update_calls(struct kretprobe_instance *instance,
 				      ssize_t displacement)
@@ -62,15 +66,15 @@ static inline int tracer_update_calls(struct kretprobe_instance *instance,
 	head = &procs_table[hash_min(pid, HASH_BITS(procs_table))];
 
 	hlist_for_each_entry (data, head, node) {
-		if (instance->task->tgid == data->tgid) {
+		if (pid == data->tgid) {
 			arch_atomic_inc(
 				(atomic_t *)((ssize_t)data + displacement));
 
-			return 0;
+			return HANDLER_CONTINUE;
 		}
 	}
 
-	return 0;
+	return HANDLER_STOP;
 }
 
 static inline struct task_struct *get_proc(pid_t pid)

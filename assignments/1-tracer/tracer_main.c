@@ -36,8 +36,8 @@
 #define WRONG_PID "Process not found."
 
 DEFINE_HASHTABLE(procs_table, PROCS_TABLE_SIZE);
+DEFINE_HASHTABLE(addr_table, PROCS_TABLE_SIZE);
 
-static spinlock_t procs_lock;
 static struct proc_dir_entry *tracer_proc;
 
 static struct kretprobe *probes[] = { &kmalloc_probe, &kfree_probe,
@@ -45,11 +45,10 @@ static struct kretprobe *probes[] = { &kmalloc_probe, &kfree_probe,
 				      &unlock_probe,  &up_probe,
 				      &down_probe };
 
-static inline void tracer_init_data(struct tracer_data *data, pid_t pid,
-				    struct task_struct *task)
+static inline void tracer_init_data(struct tracer_data *data, pid_t tgid)
 {
-	init_kmem_data(&data->kmalloc_data, task, false);
-	init_kmem_data(&data->kfree_data, task, true);
+	init_mem_data(&data->kmalloc_data);
+	init_mem_data(&data->kfree_data);
 
 	arch_atomic_set(&data->sched_calls, 0);
 	arch_atomic_set(&data->lock_calls, 0);
@@ -58,7 +57,7 @@ static inline void tracer_init_data(struct tracer_data *data, pid_t pid,
 	arch_atomic_set(&data->up_calls, 0);
 	arch_atomic_set(&data->down_calls, 0);
 
-	data->tgid = pid;
+	data->tgid = tgid;
 }
 
 static int tracer_proc_show(struct seq_file *m, void *v)
@@ -72,10 +71,10 @@ static int tracer_proc_show(struct seq_file *m, void *v)
 
 	hash_for_each (procs_table, i, crt, node) {
 		seq_printf(m, PRINT_HASH_FORMAT, crt->tgid,
-			   arch_atomic_read(&crt->kmalloc_data.generic.calls),
-			   arch_atomic_read(&crt->kfree_data.generic.calls),
-			   arch_atomic_read(&crt->kmalloc_data.generic.mem),
-			   arch_atomic_read(&crt->kfree_data.generic.mem),
+			   arch_atomic_read(&crt->kmalloc_data.calls),
+			   arch_atomic_read(&crt->kfree_data.calls),
+			   arch_atomic_read(&crt->kmalloc_data.mem),
+			   arch_atomic_read(&crt->kfree_data.mem),
 			   arch_atomic_read(&crt->sched_calls),
 			   arch_atomic_read(&crt->up_calls),
 			   arch_atomic_read(&crt->down_calls),
@@ -116,25 +115,21 @@ static inline long tracer_add_proc(unsigned long arg)
 		return -ENOMEM;
 	}
 
-	tracer_init_data(data, arg, task);
+	tracer_init_data(data, arg);
 
-	spin_lock(&procs_lock);
 	hash_add(procs_table, &data->node, arg);
-	spin_unlock(&procs_lock);
 
 	return 0;
 }
 
 static inline long tracer_rm_proc(unsigned long arg)
 {
-	int i;
 	struct tracer_data *data;
+	int i;
 
 	hash_for_each (procs_table, i, data, node) {
 		if (data->tgid == arg) {
-			spin_lock(&procs_lock);
 			hash_del(&data->node);
-			spin_unlock(&procs_lock);
 
 			kfree(data);
 
@@ -173,8 +168,10 @@ static inline int tracer_init_watchers(void)
 
 static inline void tracer_remove_watchers(void)
 {
-	int n = ARRAY_SIZE(probes);
+	int n;
 	int i;
+
+	n = ARRAY_SIZE(probes);
 
 	for (i = 0; i < n; i++)
 		unregister_kretprobe(probes[i]);
@@ -186,9 +183,6 @@ static inline void tracer_clear_hashtables(void)
 	int i;
 
 	hash_for_each (procs_table, i, data_t, node) {
-		destroy_kmem_data(&data_t->kmalloc_data);
-		destroy_kmem_data(&data_t->kfree_data);
-
 		kfree(data_t);
 	}
 }
@@ -221,7 +215,7 @@ static int tracer_init(void)
 
 	tracer_init_watchers();
 	hash_init(procs_table);
-	spin_lock_init(&procs_lock);
+	hash_init(addr_table);
 
 	return 0;
 }

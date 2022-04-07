@@ -7,94 +7,84 @@
 static int kmalloc_entry_handler(struct kretprobe_instance *instance,
 				 struct pt_regs *regs)
 {
+	struct hlist_head *head_proc;
 	struct tracer_data *data_proc;
 	struct addr_data *data_addr;
-	struct hlist_head *head_proc;
-	struct hlist_head *head_addr;
+	pid_t tgid;
 
-	pid_t pid;
-	pid_t tid;
+	tgid = current->tgid;
 
-	pid = instance->task->tgid;
-	tid = instance->task->pid;
+	head_proc = &procs_table[hash_min(tgid, HASH_BITS(procs_table))];
 
-	head_proc = &procs_table[hash_min(pid, HASH_BITS(procs_table))];
+	if (head_proc->first == NULL)
+		return HANDLER_STOP;
 
 	hlist_for_each_entry (data_proc, head_proc, node) {
-		if (pid == data_proc->tgid) {
-			arch_atomic_inc(&data_proc->kmalloc_data.generic.calls);
+		if (data_proc->tgid == tgid) {
+			arch_atomic_inc(&data_proc->kmalloc_data.calls);
 
-			head_addr = &data_proc->kmalloc_data.addr_table[hash_min(
-				tid,
-				HASH_BITS(data_proc->kmalloc_data.addr_table))];
+			data_addr = (struct addr_data *)kmalloc(
+				sizeof(struct addr_data), GFP_KERNEL);
 
-			hlist_for_each_entry (data_addr, head_addr, node) {
-				if (tid == data_addr->tid) {
-					data_addr->pending_size = regs->ax;
+			if (data_addr == NULL)
+				return -ENOMEM;
 
-					return 0;
-				}
-			}
+			data_addr->tgid = tgid;
+			data_addr->size = (ssize_t)regs->ax;
+			data_addr->addr = 0;
 
-			/* TODO: place significant return value. */
-			return 0;
+			hash_add(addr_table, &data_addr->node, tgid);
+
+			return HANDLER_CONTINUE;
 		}
 	}
 
-	/* TODO: place significant return value. */
-	return 0;
+	return HANDLER_STOP;
 }
 
 static int kmalloc_handler(struct kretprobe_instance *instance,
 			   struct pt_regs *regs)
 {
-	struct tracer_data *data_proc;
-	struct addr_data *data_addr;
 	struct hlist_head *head_proc;
 	struct hlist_head *head_addr;
-	void *addr;
-	pid_t pid;
-	pid_t tid;
+	struct tracer_data *data_proc;
+	struct addr_data *data_addr;
+	unsigned long addr;
+	pid_t tgid;
 
-	addr = (void *)regs->ax;
+	addr = regs->ax;
+	tgid = current->tgid;
 
-	pid = instance->task->tgid;
-	tid = instance->task->pid;
+	if (addr == 0)
+		return HANDLER_STOP;
 
-	head_proc = &procs_table[hash_min(pid, HASH_BITS(procs_table))];
+	head_proc = &procs_table[hash_min(tgid, HASH_BITS(procs_table))];
+
+	if (head_proc->first == NULL)
+		return HANDLER_STOP;
 
 	hlist_for_each_entry (data_proc, head_proc, node) {
-		if (pid == data_proc->tgid) {
-			head_addr = &data_proc->kmalloc_data.addr_table[hash_min(
-				tid,
-				HASH_BITS(data_proc->kmalloc_data.addr_table))];
+		if (data_proc->tgid == tgid) {
+			head_addr = &addr_table[hash_min(
+				tgid, HASH_BITS(addr_table))];
+
+			if (head_addr->first == NULL)
+				return HANDLER_STOP;
 
 			hlist_for_each_entry (data_addr, head_addr, node) {
-				if (tid == data_addr->tid) {
-					if (addr != NULL) {
-						data_addr->address = addr;
-						arch_atomic_add(
-							data_addr->pending_size,
-							&data_addr->size);
-					}
-
+				if (data_addr->tgid == tgid) {
+					data_addr->addr = addr;
 					arch_atomic_add(
-						arch_atomic_read(
-							&data_addr->size),
-						&data_proc->kmalloc_data.generic
-							 .mem);
-					data_addr->pending_size = 0;
+						data_addr->size,
+						&data_proc->kmalloc_data.mem);
 
-					return 0;
+					return HANDLER_CONTINUE;
 				}
 			}
-
-			/* TODO: place significant return value. */
-			return 0;
 		}
 	}
 
-	return 0;
+	return HANDLER_STOP;
 }
 
 struct kretprobe kmalloc_probe = { .handler = kmalloc_handler,
